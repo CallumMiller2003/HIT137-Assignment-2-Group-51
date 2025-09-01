@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""
+Group 51's cypher tool.
+
+Utilises two user-defined shift parameters to encrypt a message, and then decrypts
+that same message in order to verify its suitability.
+"""
+
+from pathlib import Path
+import json
+import sys
+
+
+def shift_char(char, shift_amount, start_char, end_char):
+    "Shift a character within a given alphabet range with wraparound."
+    start_ord = ord(start_char)
+    end_ord = ord(end_char)
+    alphabet_size = end_ord - start_ord + 1
+    
+    char_pos = ord(char) - start_ord
+    new_pos = (char_pos + shift_amount) % alphabet_size
+    return chr(start_ord + new_pos)
+
+
+def encrypt_char_with_band(char, shift1, shift2):
+    """Encrypt a single character and return both the encrypted character and band info."""
+    if 'a' <= char <= 'z':
+        if 'a' <= char <= 'm':
+            shift = shift1 * shift2
+            encrypted = shift_char(char, shift, 'a', 'z')
+            return encrypted, 'lower_first'
+        else:
+            shift = -(shift1 + shift2)
+            encrypted = shift_char(char, shift, 'a', 'z')
+            return encrypted, 'lower_second'
+    elif 'A' <= char <= 'Z':
+        if 'A' <= char <= 'M':
+            shift = -shift1
+            encrypted = shift_char(char, shift, 'A', 'Z')
+            return encrypted, 'upper_first'
+        else:
+            shift = shift2 ** 2
+            encrypted = shift_char(char, shift, 'A', 'Z')
+            return encrypted, 'upper_second'
+    else:
+        return char, 'other'
+
+
+def decrypt_char_with_band(encrypted_char, band_info, shift1, shift2):
+    """Decrypt a character using the known band information."""
+    if band_info == 'lower_first':
+        return shift_char(encrypted_char, -(shift1 * shift2), 'a', 'z')
+    elif band_info == 'lower_second':
+        return shift_char(encrypted_char, +(shift1 + shift2), 'a', 'z')
+    elif band_info == 'upper_first':
+        return shift_char(encrypted_char, +shift1, 'A', 'Z')
+    elif band_info == 'upper_second':
+        return shift_char(encrypted_char, -(shift2 ** 2), 'A', 'Z')
+    else:
+        return encrypted_char
+
+
+def print_header():
+    """Display the program header."""
+    print("=" * 60)
+    print("           GROUP 51'S ENCRYPTION TOOL")
+    print("=" * 60)
+    print("  Secure text encryption within one handy program!")
+    print("=" * 60)
+    print()
+
+
+def print_encryption_rules():
+    """Display the encryption rules for user reference."""
+    print("📋 ENCRYPTION RULES:")
+    print("   • Lowercase a-m: shift forward by (shift1 × shift2)")
+    print("   • Lowercase n-z: shift backward by (shift1 + shift2)")  
+    print("   • Uppercase A-M: shift backward by shift1")
+    print("   • Uppercase N-Z: shift forward by (shift2²)")
+    print("   • Numbers, spaces, punctuation: unchanged")
+    print()
+
+
+def get_shift_parameters():
+    """Get encryption parameters from user"""
+    print("🔧 ENCRYPTION PARAMETERS:")
+    print("   Enter two integers that will control the encryption strength.")
+    print("   Larger numbers create stronger encryption but are harder to remember.")
+    print()
+    
+    while True:
+        try:
+            shift1 = int(input("   Enter shift1 (recommended: 1-10): "))
+            shift2 = int(input("   Enter shift2 (recommended: 1-10): "))
+            
+            if shift1 == 0 and shift2 == 0:
+                print("  ⚠️  Both shifts cannot be zero. Please try again.")
+                continue
+                
+            print(f"   ✅ Using shift parameters: {shift1}, {shift2}")
+            return shift1, shift2
+            
+        except ValueError:
+            print("   ❌ Please enter valid integers.")
+        except KeyboardInterrupt:
+            print("\n\n   Program cancelled by user.")
+            sys.exit(0)
+
+
+def check_input_file():
+    """Check for input file and create sample if needed."""
+    input_file = Path("raw_text.txt")
+    
+    if not input_file.exists():
+        print("📁 INPUT FILE:")
+        print(f"   File 'raw_text.txt' not found.")
+        
+        create_sample = input("   Create sample file? (y/n): ").lower().strip()
+        if create_sample in ['y', 'yes', '']:
+            sample_text = """Welcome to the Banded Caesar Cipher!
+
+This is a demonstration of the encryption system.
+It handles all types of characters:
+- Lowercase: abcdefghijklmnopqrstuvwxyz  
+- Uppercase: ABCDEFGHIJKLMNOPQRSTUVWXYZ
+- Numbers: 0123456789
+- Symbols: !@#$%^&*()_+-=[]{}|;:,.<>?
+
+The text will be encrypted and then decrypted to verify the process works.
+"""
+            input_file.write_text(sample_text, encoding='utf-8')
+            print(f"   ✅ Created sample file: {input_file}")
+        else:
+            print("   Please create 'raw_text.txt' with your text and run the program again.")
+            sys.exit(0)
+    else:
+        file_size = input_file.stat().st_size
+        print(f"📁 INPUT FILE: Found '{input_file}' ({file_size} bytes)")
+    
+    print()
+    return input_file
+
+
+def encrypt_file(input_file, shift1, shift2):
+    """Encrypt the input file."""
+    try:
+        print("🔒 ENCRYPTION:")
+        print("   Processing...", end="", flush=True)
+        
+        text = input_file.read_text(encoding='utf-8')
+        encrypted_chars = []
+        band_info = []
+        
+        for char in text:
+            enc_char, band = encrypt_char_with_band(char, shift1, shift2)
+            encrypted_chars.append(enc_char)
+            band_info.append(band)
+        
+        encrypted_text = ''.join(encrypted_chars)
+        
+        # Write encrypted file
+        output_file = Path("encrypted_text.txt")
+        output_file.write_text(encrypted_text, encoding='utf-8')
+        
+        # Write metadata
+        metadata_file = Path("encrypted_text_metadata.json")
+        metadata_file.write_text(json.dumps(band_info), encoding='utf-8')
+        
+        print(" Done!")
+        print(f"   ✅ Encrypted file: {output_file}")
+        print(f"   ✅ Metadata file: {metadata_file}")
+        
+        return output_file, metadata_file
+        
+    except Exception as e:
+        print(f" Failed!")
+        print(f"   ❌ Encryption error: {e}")
+        return None, None
+
+
+def decrypt_file(encrypted_file, metadata_file, shift1, shift2):
+    """Decrypt the encrypted file."""
+    try:
+        print("\n🔓 DECRYPTION:")
+        print("   Processing...", end="", flush=True)
+        
+        encrypted_text = encrypted_file.read_text(encoding='utf-8')
+        band_info = json.loads(metadata_file.read_text(encoding='utf-8'))
+        
+        decrypted_chars = []
+        for i, encrypted_char in enumerate(encrypted_text):
+            if i < len(band_info):
+                decrypted_char = decrypt_char_with_band(encrypted_char, band_info[i], shift1, shift2)
+                decrypted_chars.append(decrypted_char)
+            else:
+                decrypted_chars.append(encrypted_char)
+        
+        decrypted_text = ''.join(decrypted_chars)
+        
+        output_file = Path("decrypted_text.txt")
+        output_file.write_text(decrypted_text, encoding='utf-8')
+        
+        print(" Done!")
+        print(f"   ✅ Decrypted file: {output_file}")
+        
+        return output_file
+        
+    except Exception as e:
+        print(f" Failed!")
+        print(f"   ❌ Decryption error: {e}")
+        return None
+
+
+def verify_decryption(original_file, decrypted_file):
+    """Verify that decryption was successful."""
+    try:
+        print("\n🔍 VERIFICATION:")
+        print("   Comparing files...", end="", flush=True)
+        
+        original_text = original_file.read_text(encoding='utf-8')
+        decrypted_text = decrypted_file.read_text(encoding='utf-8')
+        
+        if original_text == decrypted_text:
+            print(" Success!")
+            print("   ✅ Perfect match! Decryption is 100% accurate.")
+            return True
+        else:
+            print(" Failed!")
+            mismatches = sum(1 for a, b in zip(original_text, decrypted_text) if a != b)
+            print(f"   ❌ Found {mismatches} character differences.")
+            return False
+            
+    except Exception as e:
+        print(f" Failed!")
+        print(f"   ❌ Verification error: {e}")
+        return False
+
+
+def cleanup_files(metadata_file):
+    """Clean up temporary files."""
+    try:
+        metadata_file.unlink(missing_ok=True)
+        print("\n🧹 CLEANUP:")
+        print("   ✅ Temporary files removed.")
+    except Exception:
+        pass
+
+
+def print_completion_summary():
+    """Display completion summary."""
+    print("\n" + "=" * 60)
+    print("                    PROCESS COMPLETE")
+    print("=" * 60)
+    print("\n📁 OUTPUT FILES:")
+    print("   • encrypted_text.txt  - Your encrypted text")
+    print("   • decrypted_text.txt  - Verification copy (should match original)")
+    print("\n💡 TIPS:")
+    print("   • Keep your shift parameters secret for security!")
+    print("   • The encrypted file can only be decrypted with the same parameters")
+    print("   • Delete files when no longer needed")
+    print("\n   Thank you for using the Group 51's Tool!")
+    print("=" * 60)
+
+
+def main():
+    """Main program."""
+    try:
+        print_header()
+        print_encryption_rules()
+        
+        # Step 1: Get encryption parameters
+        shift1, shift2 = get_shift_parameters()
+        print()
+        
+        # Step 2: Check input file
+        input_file = check_input_file()
+        
+        # Step 3: Encrypt
+        encrypted_file, metadata_file = encrypt_file(input_file, shift1, shift2)
+        if not encrypted_file:
+            return
+        
+        # Step 4: Decrypt
+        decrypted_file = decrypt_file(encrypted_file, metadata_file, shift1, shift2)
+        if not decrypted_file:
+            return
+        
+        # Step 5: Verify
+        success = verify_decryption(input_file, decrypted_file)
+        
+        # Step 6: Cleanup
+        if success:
+            cleanup_files(metadata_file)
+        
+        # Step 7: Summary
+        print_completion_summary()
+        
+    except KeyboardInterrupt:
+        print("\n\n   Program cancelled by user.")
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
+        print("   Please check your input and try again.")
+
+
+if __name__ == "__main__":
+    main()
