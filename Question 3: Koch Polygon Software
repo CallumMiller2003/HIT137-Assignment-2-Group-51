@@ -1,0 +1,127 @@
+import math
+import turtle as t
+
+# ----- intro -----
+def intro():
+    print("=" * 60)
+    print("Group 51's Inward Koch Polygon Drawer!")
+    print("- you choose: number of sides, side length (pixels), and depth")
+    print("- if your size is too big, it should shrink to fit the window")
+    print("- when it finishes, you can run it again (answer [Y/N])")
+    print("=" * 60)
+    print()
+
+# ----- this draws one fancy edge with the little V dent -----
+def koch_edge(length: float, depth: int) -> None:
+    # if depth is 0 we just draw a straight bit. nothing fancy here.
+    if depth == 0:
+        t.forward(length)
+        return
+
+    # ok so we split into 3 pieces and do the dent in the middle
+    nlen = length / 3.0
+    koch_edge(nlen, depth - 1)  # first third (straight-ish but recursive)
+
+    # i *think* left 60 makes the notch go inside (since we draw CCW)
+    t.left(60)
+    koch_edge(nlen, depth - 1)
+
+    # now swing back the other way to make the V shape
+    t.right(120)
+    koch_edge(nlen, depth - 1)
+
+    # and then straighten out again
+    t.left(60)
+    koch_edge(nlen, depth - 1)
+
+# ----- draw the whole polygon, but replace every side with the fancy edge -----
+def draw_inward_koch_polygon(sides: int, side_len: float, depth: int) -> None:
+    # needs at least a triangle. also depth should not be negative
+    if sides < 3:
+        raise ValueError("Polygon must have at least 3 sides (sorry!).")
+    if depth < 0:
+        raise ValueError("Depth has to be >= 0.")
+
+    # apothem is like the distance from center to a side.
+    # i use it to place the bottom edge so the thing is kinda centered.
+    apothem = side_len / (2 * math.tan(math.pi / sides))
+    t.penup()
+    t.goto(-side_len / 2, -apothem)  # start on the left end of the bottom edge
+    t.setheading(0)                  # facing right (east)
+    t.pendown()
+
+    # we go counter-clockwise so "left" turns point toward the inside
+    exterior_turn = 360 / sides
+    for _ in range(sides):
+        koch_edge(side_len, depth)
+        t.left(exterior_turn)
+
+# ----- canvas stuff (mostly boilerplate, sorry) -----
+def prepare_canvas():
+    screen = t.Screen()
+    screen.title("Inward Koch Polygon (turtle)")
+    screen.setup(width=900, height=900)  # big square window
+    screen.tracer(False)                 # draw fast, then update once
+    t.hideturtle()
+    t.speed(0)
+    t.pensize(1)
+    return screen
+
+def clear_canvas():
+    t.clear()
+    t.penup()
+    t.home()
+    t.setheading(0)
+    t.pendown()
+
+# ----- try to keep the drawing on screen by shrinking the side if needed -----
+def fitted_side_length(screen, sides: int, requested_len: float, margin: int = 40) -> float:
+    # window radius we can use (roughly). smaller of width/height, minus a bit.
+    R_max = min(screen.window_width(), screen.window_height()) / 2 - margin
+    if R_max <= 0:
+        R_max = 300  # just in case the window says weird sizes
+
+    # for a regular polygon: circumradius R = s / (2*sin(pi/n))
+    R_req = requested_len / (2 * math.sin(math.pi / sides))
+
+    # if our requested radius is bigger than the window allows, scale it down
+    if R_req > R_max:
+        return 2 * R_max * math.sin(math.pi / sides)
+    return requested_len
+
+# ----- main loop with run-again feature -----
+def main():
+    intro()
+    screen = prepare_canvas()
+
+    while True:
+        # get user stuff. if they type junk we fall back to defaults.
+        try:
+            sides = int(input("Number of polygon sides (>=3) [default 3]: ") or 3)
+            side_len = float(input("Side length in pixels [default 240]: ") or 240)
+            depth = int(input("Recursion depth (0..6 recommended) [default 2]: ") or 2)
+        except ValueError:
+            print("Oops, bad input. Using defaults: sides=3, side=240, depth=2.")
+            sides, side_len, depth = 3, 240.0, 2
+
+        # shrink if it wouldn't fit (so it doesn't draw off the page)
+        side_len2 = fitted_side_length(screen, sides, side_len)
+        if side_len2 != side_len:
+            print(f"(Auto-fit) Side length was {side_len:.1f}, using {side_len2:.1f} so it fits.")
+            side_len = side_len2
+
+        clear_canvas()
+        draw_inward_koch_polygon(sides, side_len, depth)
+        screen.update()
+        print(f"Done! sides={sides}, side≈{side_len:.1f}, depth={depth}")
+
+        # user decides if we go again — prompt shows capital Y because it's nicer :)
+        again = input("Run again with new settings? [Y/N]: ").strip().lower()
+        if again not in ("y", "yes"):
+            print("Okay, close the window when you're finished. Bye!")
+            break
+
+    t.done()
+
+if __name__ == "__main__":
+    main()
