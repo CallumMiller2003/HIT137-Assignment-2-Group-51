@@ -115,3 +115,40 @@ if valid_ranges:
                     f"(min {info['min']:.1f}°C, max {info['max']:.1f}°C)\n")
 else:
     print("No valid station ranges found.")
+
+#Temperature Stability
+for stn_id, info in station_ranges.items():
+    temps = info.get('temps', [])
+    info['stddev'] = statistics.stdev(temps) if len(temps) >= 2 else None
+
+valid_std = [(stn_id, info) for stn_id, info in station_ranges.items()
+             if info.get('stddev') is not None]
+
+if valid_std:
+    min_std = min(info['stddev'] for _, info in valid_std)
+    max_std = max(info['stddev'] for _, info in valid_std)
+
+    most_stable = [(stn_id, info) for stn_id, info in valid_std
+                   if info['stddev'] == min_std]
+    most_variable = [(stn_id, info) for stn_id, info in valid_std
+                     if info['stddev'] == max_std]
+
+
+    print("\nTemperature Stability:")
+    for stn_id, info in most_stable:
+        print(f'Most Stable: {info["name"]}: StdDev {info["stddev"]:.1f}°C')
+    for stn_id, info in most_variable:
+        print(f'Most Variable: {info["name"]}: StdDev {info["stddev"]:.1f}°C')
+
+    # Save to file
+    with open('temperature_stability_stations.txt', 'w', encoding='utf-8') as f:
+        for stn_id, info in most_stable:
+            f.write(f'"Most Stable: {info["name"]}: StdDev {info["stddev"]:.1f}°C"\n')
+        for stn_id, info in most_variable:
+            f.write(f'"Most Variable: {info["name"]}: StdDev {info["stddev"]:.1f}°C"\n')
+else:
+    
+    with open('temperature_stability_stations.txt', 'w', encoding='utf-8') as f:
+        f.write("No stations with enough data to compute standard deviation.\n")
+
+
