@@ -1,0 +1,60 @@
+import pandas as pd
+import numpy as np
+
+seasons = {
+    'Summer': ['December', 'January', 'February'],
+    'Autumn': ['March', 'April', 'May'],
+    'Winter': ['June', 'July', 'August'],
+    'Spring': ['September', 'October', 'November']
+}
+
+folder = 'temperatures'
+
+all_data = []
+
+for file in os.listdir(folder):
+    if file.endswith('.csv'):
+        df = pd.read_csv(os.path.join(folder, file))
+        year = file.split('_')[-1].split('.')[0]
+        df['Year'] = year
+        all_data.append(df)
+
+combined_df = pd.concat(all_data, ignore_index=True)
+
+month_columns = ['January', 'February', 'March', 'April', 'May', 'June',
+                 'July', 'August', 'September', 'October', 'November', 'December']
+
+combined_df[month_columns] = combined_df[month_columns].apply(pd.to_numeric, errors='coerce')
+
+season_averages = {}
+for season, months in seasons.items():
+    temps = combined_df[months].values.flatten()
+    temps = temps[~np.isnan(temps)]
+    avg = np.mean(temps) if len(temps) > 0 else np.nan
+    season_averages[season] = avg
+
+with open('average_temp.txt', 'w') as f:
+    for season, avg in season_averages.items():
+        f.write(f"{season}: {avg:.1f}°C\n")
+
+station_groups = combined_df.groupby('STN_ID')
+
+station_ranges = {}
+for stn_id, group in station_groups:
+    temps = group[month_columns].values.flatten()
+    temps = temps[~np.isnan(temps)]
+    if len(temps) > 0:
+        max_temp = np.max(temps)
+        min_temp = np.min(temps)
+        range_temp = max_temp - min_temp
+        station_name = group['STATION_NAME'].iloc[0]
+        station_ranges[stn_id] = {
+            'name': station_name,
+            'range': range_temp,
+            'max': max_temp,
+            'min': min_temp
+        }
+
+if station_ranges:
+    max_range = max([info['range']]) for info in
+
