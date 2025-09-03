@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 
 seasons = {
     'Summer': ['December', 'January', 'February'],
@@ -56,5 +57,5 @@ for stn_id, group in station_groups:
         }
 
 if station_ranges:
-    max_range = max([info['range']]) for info in
+    max_range = max(info['range'] for info in station_ranges.values())
 
