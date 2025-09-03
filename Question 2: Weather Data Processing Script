@@ -82,11 +82,36 @@ for stn_id, info in station_ranges.items():
     else:
         info['range'] = None
 
-# Find the station with the largest temperature range
+# Find stations with the largest and smallest temperature ranges
 valid_ranges = [(stn_id, info) for stn_id, info in station_ranges.items() if info['range'] is not None]
 
 if valid_ranges:
-    max_range_station = max(valid_ranges, key=lambda x: x[1]['range'])
-    stn_id, info = max_range_station
-    print(f"Station with max range: {info['name']} ({stn_id}) — Range: {info['range']:.1f}°C")
+    max_range = max(info['range'] for _, info in valid_ranges)
+    min_range = min(info['range'] for _, info in valid_ranges)
 
+    widest = [(stn_id, info) for stn_id, info in valid_ranges if info['range'] == max_range]
+    narrowest = [(stn_id, info) for stn_id, info in valid_ranges if info['range'] == min_range]
+
+    # Console output
+    print("Stations with widest temperature range:")
+    for stn_id, info in widest:
+        print(f"{info['name']} ({stn_id}) — Range: {info['range']:.1f}°C "
+              f"(min {info['min']:.1f}°C, max {info['max']:.1f}°C)")
+
+    print("\nStations with narrowest temperature range:")
+    for stn_id, info in narrowest:
+        print(f"{info['name']} ({stn_id}) — Range: {info['range']:.1f}°C "
+              f"(min {info['min']:.1f}°C, max {info['max']:.1f}°C)")
+
+    # Append to the text file
+    with open('average_temp.txt', 'a', encoding='utf-8') as f:
+        f.write("\nStations with widest temperature range:\n")
+        for stn_id, info in widest:
+            f.write(f"{info['name']} ({stn_id}) — Range: {info['range']:.1f}°C "
+                    f"(min {info['min']:.1f}°C, max {info['max']:.1f}°C)\n")
+        f.write("\nStations with narrowest temperature range:\n")
+        for stn_id, info in narrowest:
+            f.write(f"{info['name']} ({stn_id}) — Range: {info['range']:.1f}°C "
+                    f"(min {info['min']:.1f}°C, max {info['max']:.1f}°C)\n")
+else:
+    print("No valid station ranges found.")
