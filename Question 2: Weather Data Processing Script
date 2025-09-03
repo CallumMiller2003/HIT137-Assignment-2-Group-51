@@ -1,6 +1,6 @@
-import pandas as pd
-import numpy as np
 import os
+import csv
+import statistics
 
 seasons = {
     'Summer': ['December', 'January', 'February'],
@@ -13,49 +13,80 @@ folder = 'temperatures'
 
 all_data = []
 
+# Read all CSV files in the folder
 for file in os.listdir(folder):
     if file.endswith('.csv'):
-        df = pd.read_csv(os.path.join(folder, file))
-        year = file.split('_')[-1].split('.')[0]
-        df['Year'] = year
-        all_data.append(df)
+        filepath = os.path.join(folder, file)
+        with open(filepath, newline='') as f:
+            reader = csv.DictReader(f)
+            year = file.split('_')[-1].split('.')[0]
+            for row in reader:
+                row['Year'] = year
+                all_data.append(row)
 
-combined_df = pd.concat(all_data, ignore_index=True)
-
+# Convert all month values to float (if possible)
 month_columns = ['January', 'February', 'March', 'April', 'May', 'June',
                  'July', 'August', 'September', 'October', 'November', 'December']
 
-combined_df[month_columns] = combined_df[month_columns].apply(pd.to_numeric, errors='coerce')
+for row in all_data:
+    for month in month_columns:
+        try:
+            row[month] = float(row[month])
+        except (ValueError, KeyError):
+            row[month] = None
 
+# Compute season averages
 season_averages = {}
 for season, months in seasons.items():
-    temps = combined_df[months].values.flatten()
-    temps = temps[~np.isnan(temps)]
-    avg = np.mean(temps) if len(temps) > 0 else np.nan
+    temps = []
+    for row in all_data:
+        for month in months:
+            temp = row.get(month)
+            if temp is not None:
+                temps.append(temp)
+    avg = statistics.mean(temps) if temps else None
     season_averages[season] = avg
 
+# Save season averages to a text file
 with open('average_temp.txt', 'w') as f:
     for season, avg in season_averages.items():
-        f.write(f"{season}: {avg:.1f}°C\n")
+        if avg is not None:
+            f.write(f"{season}: {avg:.1f}°C\n")
+        else:
+            f.write(f"{season}: No data\n")
 
-station_groups = combined_df.groupby('STN_ID')
-
+# Group by station and compute range
 station_ranges = {}
-for stn_id, group in station_groups:
-    temps = group[month_columns].values.flatten()
-    temps = temps[~np.isnan(temps)]
-    if len(temps) > 0:
-        max_temp = np.max(temps)
-        min_temp = np.min(temps)
-        range_temp = max_temp - min_temp
-        station_name = group['STATION_NAME'].iloc[0]
+for row in all_data:
+    stn_id = row.get('STN_ID')
+    station_name = row.get('STATION_NAME', 'Unknown')
+    if stn_id not in station_ranges:
         station_ranges[stn_id] = {
             'name': station_name,
-            'range': range_temp,
-            'max': max_temp,
-            'min': min_temp
+            'temps': []
         }
+    for month in month_columns:
+        temp = row.get(month)
+        if temp is not None:
+            station_ranges[stn_id]['temps'].append(temp)
 
-if station_ranges:
-    max_range = max(info['range'] for info in station_ranges.values())
+# Compute range for each station
+for stn_id, info in station_ranges.items():
+    temps = info['temps']
+    if temps:
+        max_temp = max(temps)
+        min_temp = min(temps)
+        info['range'] = max_temp - min_temp
+        info['max'] = max_temp
+        info['min'] = min_temp
+    else:
+        info['range'] = None
+
+# Find the station with the largest temperature range
+valid_ranges = [(stn_id, info) for stn_id, info in station_ranges.items() if info['range'] is not None]
+
+if valid_ranges:
+    max_range_station = max(valid_ranges, key=lambda x: x[1]['range'])
+    stn_id, info = max_range_station
+    print(f"Station with max range: {info['name']} ({stn_id}) — Range: {info['range']:.1f}°C")
 
